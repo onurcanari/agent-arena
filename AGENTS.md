@@ -18,5 +18,5 @@
 - `WS   /ws`         -> full state every 5s
 
 ## Deploy
-- Domain: https://agent-arena.onurcanari.com (Dokploy, sunucu 140.245.6.201 - Traefik 80/443)
+- Domain: https://loom.onurcanari.com (Dokploy, sunucu 140.245.6.201 - Traefik 80/443)
 - Deploy komutu: project-deploy agent-arena
