@@ -1,1 +1,31 @@
-<h1>agent-arena backend up</h1>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Arena</title>
+  <link rel="icon" href="data:;base64,iVBORw0KGgo=" />
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <canvas id="arena"></canvas>
+
+  <!-- Top Task Board -->
+  <div id="task-board" class="task-board">
+    <div class="task-box" data-index="0"><div class="task-id">T-0</div><div class="task-status idle">IDLE</div></div>
+    <div class="task-box" data-index="1"><div class="task-id">T-1</div><div class="task-status idle">IDLE</div></div>
+    <div class="task-box" data-index="2"><div class="task-id">T-2</div><div class="task-status idle">IDLE</div></div>
+    <div class="task-box" data-index="3"><div class="task-id">T-3</div><div class="task-status idle">IDLE</div></div>
+    <div class="task-box" data-index="4"><div class="task-id">T-4</div><div class="task-status idle">IDLE</div></div>
+    <div class="task-box" data-index="5"><div class="task-id">T-5</div><div class="task-status idle">IDLE</div></div>
+  </div>
+
+  <!-- Right Log Feed -->
+  <div id="log-feed" class="log-feed">
+    <div class="log-header">Log Feed</div>
+    <div id="log-list" class="log-list"></div>
+  </div>
+
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
