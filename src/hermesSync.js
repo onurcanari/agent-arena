@@ -73,12 +73,40 @@ function taskDefForBoardTask(boardTask) {
 // Fetch every task row across every board via the hermes CLI.
 // Returns an array of board-task objects (see kanban list --json shape).
 async function fetchBoardTasks() {
-  const { stdout } = await execFileP(HERMES_BIN, ['kanban', 'list', '--json'], {
-    timeout: SYNC_TIMEOUT_MS,
-    maxBuffer: 4 * 1024 * 1024,
-  });
-  const parsed = JSON.parse(stdout);
-  return Array.isArray(parsed) ? parsed : [];
+  let stdout;
+  try {
+    const { stdout: out } = await execFileP(HERMES_BIN, ['kanban', 'list', '--json'], {
+      timeout: SYNC_TIMEOUT_MS,
+      maxBuffer: 4 * 1024 * 1024,
+    });
+    stdout = out;
+  } catch (err) {
+    state.logs.push({
+      id: state.nextLogId++,
+      timestamp: new Date().toISOString(),
+      type: 'error',
+      message: `hermes CLI failed: ${err?.message ?? String(err)}`,
+    });
+    return [];
+  }
+
+  let parsed;
+  try {
+    parsed = JSON.parse(stdout);
+    if (!Array.isArray(parsed)) {
+      throw new Error('Expected array from hermes CLI');
+    }
+  } catch (err) {
+    state.logs.push({
+      id: state.nextLogId++,
+      timestamp: new Date().toISOString(),
+      type: 'error',
+      message: `Failed to parse hermes JSON: ${err.message}`,
+    });
+    return [];
+  }
+
+  return parsed;
 }
 
 // Build the dashboard shape from a fresh board-task snapshot.

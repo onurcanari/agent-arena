@@ -57,7 +57,7 @@ attachWs(app.server, { state, intervalMs: 5000 });
 
 // Don't block startup on the first sync; let the dashboard render whatever
 // state already exists and update as soon as the CLI responds.
-hermesSync.ready.catch(() => {});
+hermesSync.ready.catch((err) => app.log.warn({ err: err?.message ?? String(err) }, 'hermes sync failed at startup'));
 
-process.on('SIGTERM', () => hermesSync.stop());
-process.on('SIGINT', () => hermesSync.stop());
+process.on('SIGTERM', async () => { await app.close(); hermesSync.stop(); });
+process.on('SIGINT', async () => { await app.close(); hermesSync.stop(); });
