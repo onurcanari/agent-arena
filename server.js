@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 
 import { createState } from './src/state.js';
-import { tick } from './src/mockClock.js';
+import { startHermesSync } from './src/hermesSync.js';
 import { registerRoutes } from './src/routes.js';
 import { attachWs } from './src/ws.js';
 
@@ -34,9 +34,14 @@ await app.register(fastifyStatic, {
 
 registerRoutes(app, { state });
 
-// Spin up mock mutations: deterministic, every 5 seconds.
-const mockTimer = setInterval(() => tick(state), 5000);
-if (typeof mockTimer.unref === 'function') mockTimer.unref();
+// Pull real task/agent state from the hermes kanban CLI every 10s.
+// Replaces the deterministic mockClock so the dashboard reflects actual
+// board activity. Initial sync runs before the first HTTP bind so the
+// first /api/state response already has data.
+const hermesSync = startHermesSync(state, {
+  intervalMs: 10_000,
+  onError: (err) => app.log.warn({ err: err?.message ?? String(err) }, 'hermes sync failed; keeping last state'),
+});
 
 try {
   await app.listen({ host: HOST, port: PORT });
@@ -46,5 +51,13 @@ try {
   process.exit(1);
 }
 
-// Attach WS once we have the underlying http server.
+// Attach WS once we have the underlying http server. Push interval dropped
+// to 5s so clients see log entries appear in near real time.
 attachWs(app.server, { state, intervalMs: 5000 });
+
+// Don't block startup on the first sync; let the dashboard render whatever
+// state already exists and update as soon as the CLI responds.
+hermesSync.ready.catch((err) => app.log.warn({ err: err?.message ?? String(err) }, 'hermes sync failed at startup'));
+
+process.on('SIGTERM', async () => { await app.close(); hermesSync.stop(); });
+process.on('SIGINT', async () => { await app.close(); hermesSync.stop(); });

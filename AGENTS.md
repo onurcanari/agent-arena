@@ -1,6 +1,13 @@
 # agent-arena
 
 ## Definition of Done
+
+## Architecture
+
+- **Real board sync**: `src/hermesSync.js` pulls live state from `hermes kanban list --json` every 10 seconds and maps it onto the 8-agent visual scene. The first agent slot reflects the most recently active board assignee; remaining slots stay idle. If `HERMES_BIN` is not set, defaults to `/opt/hermes/bin/hermes` (override via env in CI/dev where hermes lives elsewhere). If the CLI is missing or returns malformed JSON, the sync pushes an `error` log entry and keeps the last good state; the server does not crash.
+- **REST endpoints**: `/api/health`, `/api/state`, `/api/logs?limit=N`, `/POST /api/event`
+- **WebSocket**: `/ws` broadcasts full state every 5 seconds
+
 - `npm install --include=dev` (production + dev deps)
 - `npm run lint` (syntax check on `server.js`)
 - `npm start` then verify:
