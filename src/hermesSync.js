@@ -72,7 +72,7 @@ function taskDefForBoardTask(boardTask) {
 
 // Fetch every task row across every board via the hermes CLI.
 // Returns an array of board-task objects (see kanban list --json shape).
-async function fetchBoardTasks() {
+async function fetchBoardTasks(state) {
   let stdout;
   try {
     const { stdout: out } = await execFileP(HERMES_BIN, ['kanban', 'list', '--json'], {
@@ -190,7 +190,7 @@ function applyBoardSnapshot(state, boardTasks) {
 // Single sync tick: fetch + apply. Resolves with the new agent/task count
 // for heartbeat logging, or rejects on transient error.
 export async function syncFromHermes(state) {
-  const boardTasks = await fetchBoardTasks();
+  const boardTasks = await fetchBoardTasks(state);
   applyBoardSnapshot(state, boardTasks);
   return {
     agents: state.agents.length,
