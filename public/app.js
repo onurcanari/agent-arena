@@ -246,7 +246,7 @@ function buildScene() {
     // HTML label
     const label = document.createElement('div');
     label.className = 'character-label';
-    label.innerHTML = `<span class="name">coder-${i}</span><span class="badge idle">IDLE</span>`;
+    label.innerHTML = `<span class="name">${agent.name}</span><span class="badge idle">IDLE</span>`;
     document.body.appendChild(label);
     character.userData.label = label;
     character.userData.status = 'idle';
@@ -372,8 +372,8 @@ function renderLogFeed() {
   STATE.logs.slice(0, MAX_LOG_ENTRIES).forEach((entry) => {
     const div = document.createElement('div');
     div.className = `log-entry ${entry.type || 'info'}`;
-    const ts = new Date(entry.ts || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    div.innerHTML = `<span class="ts">${ts}</span><span class="type">${entry.type || 'info'}</span><span class="msg">${escapeHtml(entry.msg || '')}</span>`;
+    const ts = new Date(entry.timestamp || Date.now()).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    div.innerHTML = `<span class="ts">${ts}</span><span class="type">${entry.type || 'info'}</span><span class="msg">${escapeHtml(entry.message || '')}</span>`;
     list.appendChild(div);
   });
   if (wasAtTop) list.scrollTop = 0;
@@ -400,9 +400,9 @@ function applyAgentState() {
         }
       }
     }
-    if (typeof agent.x === 'number' && typeof agent.z === 'number') {
-      c.position.x = agent.x;
-      c.position.z = agent.z;
+    if (typeof agent.position?.x === 'number' && typeof agent.position?.z === 'number') {
+      c.position.x = agent.position.x;
+      c.position.z = agent.position.z;
     }
     if (!c.userData.baseRotationY) {
       c.userData.baseRotationY = c.rotation.y;
