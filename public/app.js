@@ -6,8 +6,9 @@ import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders
 // ---------- Constants ----------
 const AGENT_COUNT = 8;
 const TASK_COUNT = 6;
-const POLL_INTERVAL_MS = 5000;
+const WS_RECONNECT_MS = 2000;
 const MAX_LOG_ENTRIES = 50;
+const WS_URL = `${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`;
 const LABEL_HEIGHT_OFFSET = 1.4;
 
 const STATE = {
@@ -410,26 +411,37 @@ function applyAgentState() {
   }
 }
 
-// ---------- Fetch state ----------
-async function fetchState() {
+// ---------- WebSocket state stream ----------
+let ws = null;
+function connectWs() {
   try {
-    const resp = await fetch('/api/state', { cache: 'no-store' });
-    if (!resp.ok) return;
-    const data = await resp.json();
+    ws = new WebSocket(WS_URL);
+  } catch (_e) {
+    setTimeout(connectWs, WS_RECONNECT_MS);
+    return;
+  }
+  ws.addEventListener('open', () => {
+    console.log('ws connected');
+  });
+  ws.addEventListener('message', (ev) => {
+    let msg;
+    try { msg = JSON.parse(ev.data); } catch (_e) { return; }
+    if (!msg || msg.type !== 'state' || !msg.data) return;
+    const data = msg.data;
     if (Array.isArray(data.agents)) STATE.agents = data.agents;
     if (Array.isArray(data.tasks)) STATE.tasks = data.tasks;
     if (Array.isArray(data.logs)) {
-      // Prepend new entries
-      const existingTs = new Set(STATE.logs.map((l) => l.ts + '|' + l.msg));
-      const fresh = data.logs.filter((l) => !existingTs.has((l.ts || 0) + '|' + (l.msg || '')));
+      const existing = new Set(STATE.logs.map((l) => (l.ts || 0) + '|' + (l.msg || '')));
+      const fresh = data.logs.filter((l) => !existing.has((l.ts || 0) + '|' + (l.msg || '')));
       STATE.logs = [...fresh, ...STATE.logs].slice(0, MAX_LOG_ENTRIES);
     }
     applyAgentState();
     renderTaskBoard();
     renderLogFeed();
-  } catch (_e) {
-    // Silent — no console output per spec
-  }
+  });
+  ws.addEventListener('close', () => {
+    setTimeout(connectWs, WS_RECONNECT_MS);
+  });
 }
 
 // ---------- WebGL error handling ----------
@@ -501,8 +513,7 @@ async function init() {
   });
 
   loop();
-  await fetchState();
-  setInterval(fetchState, POLL_INTERVAL_MS);
+  connectWs();
 }
 
 init();
