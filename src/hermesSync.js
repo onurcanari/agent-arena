@@ -16,6 +16,7 @@
 //     is never empty.
 
 import { execFile } from 'node:child_process';
+import { readFile } from 'node:fs/promises';
 import { promisify } from 'node:util';
 
 const execFileP = promisify(execFile);
@@ -23,6 +24,11 @@ const execFileP = promisify(execFile);
 const TASK_LIMIT = 6;
 const LOG_LIMIT = 50;
 const HERMES_BIN = process.env.HERMES_BIN ?? '/opt/hermes/bin/hermes';
+// Optional: path to a board.json file exported by the Hermes container
+// (cron + loom-board-export.py). When set, the sync reads this file instead
+// of spawning the hermes CLI (the CLI is unavailable inside the Dokploy
+// container). File content: JSON array of `hermes kanban list --json` rows.
+const HERMES_BOARD_FILE = process.env.HERMES_BOARD_FILE ?? '';
 const SYNC_TIMEOUT_MS = 8000;
 
 function statusToTaskStatus(kanbanStatus) {
@@ -70,13 +76,52 @@ function taskDefForBoardTask(boardTask) {
   };
 }
 
-// Fetch every task row across every board via the hermes CLI.
+// Fetch every task row across every board. Two sources:
+//   1. HERMES_BOARD_FILE set -> read the exported board.json (Dokploy mode).
+//   2. Otherwise spawn the hermes CLI (local dev mode).
 // Returns an array of board-task objects (see kanban list --json shape).
-// Logs a one-time info message on first spawn failure (e.g. binary missing
-// in the Dokploy container) and silently returns [] on subsequent ticks so
-// the log feed doesn't get spammed every 10s.
+// Logs a one-time info message on first failure (e.g. binary missing or file
+// not mounted) and silently returns [] on subsequent ticks so the log feed
+// doesn't get spammed every 10s.
 let _hermesUnavailableWarned = false;
+function warnOnce(state, message) {
+  if (_hermesUnavailableWarned) return;
+  pushLog(state, { type: 'info', message });
+  _hermesUnavailableWarned = true;
+}
+
 async function fetchBoardTasks(state) {
+  // --- Dokploy mode: read the exported board file ---
+  if (HERMES_BOARD_FILE) {
+    let raw;
+    try {
+      raw = await readFile(HERMES_BOARD_FILE, 'utf8');
+      _hermesUnavailableWarned = false;
+    } catch (err) {
+      warnOnce(
+        state,
+        `board file not readable at ${HERMES_BOARD_FILE} (running in mock mode)`
+      );
+      return [];
+    }
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        throw new Error('Expected JSON array in board file');
+      }
+      return parsed;
+    } catch (err) {
+      state.logs.push({
+        id: state.nextLogId++,
+        timestamp: new Date().toISOString(),
+        type: 'error',
+        message: `Failed to parse board file: ${err.message}`,
+      });
+      return [];
+    }
+  }
+
+  // --- Local dev mode: spawn the hermes CLI ---
   let stdout;
   try {
     const { stdout: out } = await execFileP(HERMES_BIN, ['kanban', 'list', '--json'], {
@@ -86,13 +131,10 @@ async function fetchBoardTasks(state) {
     stdout = out;
     _hermesUnavailableWarned = false;
   } catch (err) {
-    if (!_hermesUnavailableWarned) {
-      const msg = err?.code === 'ENOENT'
-        ? `hermes CLI not found at ${HERMES_BIN} (running in mock mode)`
-        : `hermes CLI failed: ${err?.message ?? String(err)}`;
-      pushLog(state, { type: 'info', message: msg });
-      _hermesUnavailableWarned = true;
-    }
+    const msg = err?.code === 'ENOENT'
+      ? `hermes CLI not found at ${HERMES_BIN} (running in mock mode)`
+      : `hermes CLI failed: ${err?.message ?? String(err)}`;
+    warnOnce(state, msg);
     return [];
   }
 
