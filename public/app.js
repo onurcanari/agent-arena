@@ -2,6 +2,7 @@
 import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
 import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'https://unpkg.com/three@0.160.0/examples/jsm/loaders/GLTFLoader.js';
+import * as SkeletonUtils from 'https://unpkg.com/three@0.160.0/examples/jsm/utils/SkeletonUtils.js';
 
 // ---------- Constants ----------
 const AGENT_COUNT = 8;
@@ -178,7 +179,9 @@ function buildScene() {
 
     let character;
     if (modelTemplate) {
-      character = modelTemplate.clone(true);
+      // SkinnedMesh needs SkeletonUtils.clone: Object3D.clone(true) does not
+      // rebind the skeleton and the clone renders invisible.
+      character = SkeletonUtils.clone(modelTemplate);
       character.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
@@ -245,7 +248,8 @@ function buildScene() {
     // HTML label
     const label = document.createElement('div');
     label.className = 'character-label';
-    label.innerHTML = `<span class="name">${agent.name}</span><span class="badge idle">IDLE</span>`;
+    const agentName = STATE.agents[i]?.name ?? `Agent ${i + 1}`;
+    label.innerHTML = `<span class="name">${agentName}</span><span class="badge idle">IDLE</span>`;
     document.body.appendChild(label);
     character.userData.label = label;
     character.userData.status = 'idle';
@@ -416,8 +420,8 @@ function applyState(data) {
   if (Array.isArray(data.agents)) STATE.agents = data.agents;
   if (Array.isArray(data.tasks)) STATE.tasks = data.tasks;
   if (Array.isArray(data.logs)) {
-    const seen = new Set(STATE.logs.map((l) => l.ts + '|' + l.msg));
-    const fresh = data.logs.filter((l) => !seen.has((l.ts || 0) + '|' + (l.msg || '')));
+    const seen = new Set(STATE.logs.map((l) => (l.timestamp || '') + '|' + (l.message || '')));
+    const fresh = data.logs.filter((l) => !seen.has((l.timestamp || '') + '|' + (l.message || '')));
     STATE.logs = [...fresh, ...STATE.logs].slice(0, MAX_LOG_ENTRIES);
   }
   applyAgentState();
@@ -426,8 +430,9 @@ function applyState(data) {
 }
 
 function connectWs() {
+  const wsProto = location.protocol === 'https:' ? 'wss:' : 'ws:';
   try {
-    ws = new WebSocket(`ws://${location.host}/ws`);
+    ws = new WebSocket(`${wsProto}//${location.host}/ws`);
   } catch (e) {
     setTimeout(connectWs, 2000);
     return;
@@ -488,7 +493,7 @@ async function init() {
       const modelTemplate = models[sourceIdx];
       if (!modelTemplate) continue;
       const pos = agentPositions[i];
-      const newChar = modelTemplate.clone(true);
+      const newChar = SkeletonUtils.clone(modelTemplate);
       newChar.traverse((child) => {
         if (child.isMesh) {
           child.castShadow = true;
