@@ -72,6 +72,10 @@ function taskDefForBoardTask(boardTask) {
 
 // Fetch every task row across every board via the hermes CLI.
 // Returns an array of board-task objects (see kanban list --json shape).
+// Logs a one-time info message on first spawn failure (e.g. binary missing
+// in the Dokploy container) and silently returns [] on subsequent ticks so
+// the log feed doesn't get spammed every 10s.
+let _hermesUnavailableWarned = false;
 async function fetchBoardTasks(state) {
   let stdout;
   try {
@@ -80,13 +84,15 @@ async function fetchBoardTasks(state) {
       maxBuffer: 4 * 1024 * 1024,
     });
     stdout = out;
+    _hermesUnavailableWarned = false;
   } catch (err) {
-    state.logs.push({
-      id: state.nextLogId++,
-      timestamp: new Date().toISOString(),
-      type: 'error',
-      message: `hermes CLI failed: ${err?.message ?? String(err)}`,
-    });
+    if (!_hermesUnavailableWarned) {
+      const msg = err?.code === 'ENOENT'
+        ? `hermes CLI not found at ${HERMES_BIN} (running in mock mode)`
+        : `hermes CLI failed: ${err?.message ?? String(err)}`;
+      pushLog(state, { type: 'info', message: msg });
+      _hermesUnavailableWarned = true;
+    }
     return [];
   }
 
